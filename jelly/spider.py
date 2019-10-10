@@ -49,7 +49,7 @@ class Spider:
             cls._put_url(url, callback)
 
     @classmethod
-    def _put_url(cls, url, callback=None):
+    def _put_url(cls, url, callback):
         url = unescape(url)
         if not re.match(r'(http|https)://', url):
             url = urljoin(cls.base_url, url)
