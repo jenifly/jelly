@@ -6,13 +6,14 @@ import aiofiles
 from fake_useragent import UserAgent
 from jelly import Spider
 
-MYSQL_OPTIONS = {
+
+MYSQL_OPTIONS = dict(
     host='127.0.0.1',
     db='test',
     user='root',
     password='root',
     charset="utf8"
-}
+)
 
 class Mysql:
     @classmethod
@@ -40,7 +41,7 @@ class MySpider(Spider):
 
     async def parse(self, response):
         # Set the headers for the next request
-        MySpider.headers = {'User-Agent': ua.random}
+        MySpider.headers = {'User-Agent': MySpider.ua.random}
         # Set the proxy for the next request
         MySpider.proxy = 'xxx.xxx.xxx.xxx:xxxx'
         urls = re.findall(r'<a href="(.*?)">\(about\)', response.html)
