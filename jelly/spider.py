@@ -36,6 +36,11 @@ class Spider:
     proxy = None
     cookie_jar = None
 
+    def __new__(cls, *args, **kwargs):
+        if not hasattr(cls, '_instance'):
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
     @classmethod
     def is_running(cls):
         a = not cls.pre_parse_urls.empty() or len(cls.parsing_urls)
@@ -75,7 +80,7 @@ class Spider:
         loop = asyncio.get_event_loop()
         try:
             semaphore = asyncio.Semaphore(cls.concurrency)
-            loop.run_until_complete(cls.task(semaphore))
+            loop.run_until_complete(asyncio.gather(cls().initialize(), cls._task(semaphore)))
         except KeyboardInterrupt:
             for task in asyncio.Task.all_tasks():
                 task.cancel()
@@ -88,10 +93,25 @@ class Spider:
             logger.info('Spider finished!')
             loop.close()
 
+    async def initialize(self):
+        pass
+
     @classmethod
-    async def execute_url(cls, url, session, semaphore):
+    async def _task(cls, semaphore):
+        async with aiohttp.ClientSession(cookie_jar=cls.cookie_jar) as session:
+            while cls.is_running():
+                try:
+                    url = await asyncio.wait_for(cls.pre_parse_urls.get(), 5)
+                    cls.parsing_urls.append(url)
+                    asyncio.ensure_future(
+                        cls._execute_url(url, session, semaphore))
+                except asyncio.TimeoutError:
+                    pass
+
+    @classmethod
+    async def _execute_url(cls, url, session, semaphore):
         callback = url[1] if isinstance(url, tuple) else None
-        response = await cls.fetch(url[0] if callback else url, session, semaphore)
+        response = await cls._fetch(url[0] if callback else url, session, semaphore)
 
         if response.html is None:
             cls.error_urls.append(url)
@@ -109,40 +129,23 @@ class Spider:
             await callback(response)
             url = url[0]
         else:
-            await cls.parse(cls(), response)
+            await cls().parse(response)
 
         logger.info('Parsed({}/{}): {}'.format(len(cls.done_urls),
                                                len(cls.filter_urls), url))
 
     async def parse(self, html):
-        pass
+        raise NotImplementedError
 
     @classmethod
-    async def task(cls, semaphore):
-        async with aiohttp.ClientSession(cookie_jar=cls.cookie_jar) as session:
-            while cls.is_running():
-                try:
-                    url = await asyncio.wait_for(cls.pre_parse_urls.get(), 5)
-                    cls.parsing_urls.append(url)
-                    asyncio.ensure_future(
-                        cls.execute_url(url, session, semaphore))
-                except asyncio.TimeoutError:
-                    pass
-
-    @classmethod
-    async def fetch(cls, url, session, semaphore):
+    async def _fetch(cls, url, session, semaphore):
         if cls.interval:
             time.sleep(cls.interval)
         async with semaphore:
             try:
-                if callable(cls.headers):
-                    headers = cls.headers()
-                else:
-                    headers = cls.headers
-                async with session.get(url, headers=headers, proxy=cls.proxy) as response:
+                async with session.get(url, headers=cls.headers, proxy=cls.proxy) as response:
                     if response.status in [200, 201]:
-                        return Response({'html': await response.text(), 'url': response.url,
-                                         'headers': response.headers, 'cookies': response.cookies})
+                        return Response({'html': await response.text(), 'url': response.url, 'headers': response.headers, 'cookies': response.cookies})
                     logger.error('Error: {} {}'.format(url, response.status))
                     return None
             except:
