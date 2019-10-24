@@ -21,7 +21,6 @@ MYSQL_OPTIONS = dict(
 )
 
 class Mysql:
-    @classmethod
     def __init__(self, mysql_pool):
         self._mysql_pool = mysql_pool
 
