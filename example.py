@@ -51,8 +51,8 @@ class MySpider(Spider):
     async def qoute_parse(self, response):
         title = re.search(r'<strong>Description:</strong>', response.html)
         await self.mysql.execute('INSERT ...')
-        async with aiofiles.open('data.txt', mode='w') as f:
-            f.write('{}\r\n'.format(title))
+        async with aiofiles.open('data.txt', mode='a') as f:
+            await f.write('{}\n'.format(title.group(0)))
 
 
 if __name__ == '__main__':

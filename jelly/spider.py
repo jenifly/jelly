@@ -113,7 +113,7 @@ class Spider:
         callback = url[1] if isinstance(url, tuple) else None
         response = await cls._fetch(url[0] if callback else url, session, semaphore)
 
-        if response.html is None:
+        if response is None:
             cls.error_urls.append(url)
             cls.pre_parse_urls.put_nowait(url)
             # failure to retry or change your proxy
